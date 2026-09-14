@@ -1,3 +1,4 @@
+import { claimCounts, unclaimedUnits, unitCount } from '../core/claims.js';
 import { formatMoney } from '../core/money.js';
 import { reconcile } from '../core/split.js';
 import type { Bill, SplitResult } from '../core/types.js';
@@ -16,9 +17,13 @@ export function renderBill(bill: Bill): string {
     const qty = it.qty !== 1 ? ` ×${it.qty}` : '';
     let who = '';
     if (bill.mode === 'itemized' && bill.status === 'assigning') {
-      who = it.claimedBy.length
-        ? ' — ' + it.claimedBy.map((u) => `${personEmoji(u)} ${esc(names.get(u) ?? u)}`).join(', ')
-        : ' — 🌐 на всех';
+      const multi = unitCount(it) > 1;
+      const takers = [...claimCounts(it)].map(
+        ([u, n]) => `${personEmoji(u)} ${esc(names.get(u) ?? u)}${multi && n > 1 ? ` ×${n}` : ''}`,
+      );
+      const free = unclaimedUnits(it);
+      if (free > 0) takers.push(multi && takers.length ? `🌐 ${free} на всех` : '🌐 на всех');
+      who = ' — ' + takers.join(', ');
     }
     return `${it.idx}. ${esc(it.title)}${qty} — <b>${formatMoney(it.amount)}</b>${who}`;
   });
@@ -42,7 +47,7 @@ export function renderBill(bill: Bill): string {
     `Режим: <b>${mode}</b>`,
     `Участники (${bill.participants.length}): ${bill.participants.map((p) => `${personEmoji(p.userId)} ${esc(p.displayName)}`).join(', ')}`,
     bill.mode === 'itemized' && bill.status === 'assigning'
-      ? '\n👇 Жми справа от позиции, чтобы забрать её себе (можно нескольким — разделится между вами)\n🌐 — никто не забрал, разделится на всех поровну'
+      ? '\n👇 Жми справа от позиции, чтобы забрать её себе (можно нескольким — разделится между вами)\n🔁 Если позиций несколько (×2, ×3), каждый клик берёт ещё одну штуку; клик сверх свободного снимает тебя\n🌐 — никто не забрал, разделится на всех поровну'
       : '',
   ]
     .filter((l) => l !== null)
@@ -65,7 +70,11 @@ export function renderResult(bill: Bill, result: SplitResult): string {
     .sort((a, b) => b.amount - a.amount)
     .map((s) => {
       const items = s.lines
-        .map((l) => (l.splitBetween > 1 ? `${esc(l.title)} ÷${l.splitBetween}` : esc(l.title)))
+        .map((l) => {
+          const units = l.units && l.units > 1 ? ` ×${l.units}` : '';
+          const div = l.splitBetween > 1 ? ` ÷${l.splitBetween}` : '';
+          return `${esc(l.title)}${units}${div}`;
+        })
         .join(', ');
       const adj = s.adjustments ? ` + сервис ${formatMoney(s.adjustments)}` : '';
       return `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>\n<i>${items}${adj}</i>`;
@@ -77,8 +86,10 @@ export function renderResult(bill: Bill, result: SplitResult): string {
       ? `✔ Сходится с чеком: ${formatMoney(bill.total, cur)}`
       : `⚠️ Расхождение с чеком: ${formatMoney(diff, cur)} (в чеке ${formatMoney(bill.total, cur)}, посчитано ${formatMoney(result.total, cur)})`;
 
-  const unclaimed = result.unclaimedItemIdx.length
-    ? `\nℹ️ Позиции ${result.unclaimedItemIdx.join(', ')} никто не отметил — разделены на всех.`
+  const unclaimed = result.unclaimed.length
+    ? `\nℹ️ Никто не отметил — разделено на всех: ${result.unclaimed
+        .map((u) => `${esc(u.title)}${u.ofUnits > 1 ? ` (${u.units} из ${u.ofUnits})` : ''}`)
+        .join(', ')}.`
     : '';
 
   return [`💰 <b>Итого к оплате</b>`, '', ...rows, '', check + unclaimed].join('\n');

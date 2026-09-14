@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { tapClaim } from '../core/claims.js';
 import { splitBill } from '../core/split.js';
 import type { Bill, Participant, SplitMode, SplitResult, UserId } from '../core/types.js';
 import type { BillRepo } from '../db/repo.js';
@@ -80,10 +81,8 @@ export class BillService {
         b.participants.push({ ...p, autoJoined: true });
       }
 
-      const releasing = item.claimedBy.includes(p.userId);
-      item.claimedBy = releasing
-        ? item.claimedBy.filter((u) => u !== p.userId)
-        : [...item.claimedBy, p.userId];
+      // One tap = one more unit on multi-unit items (tap past the cap releases); toggle otherwise.
+      const releasing = tapClaim(item, p.userId) === 'released';
 
       if (releasing) {
         const me = b.participants.find((x) => x.userId === p.userId);

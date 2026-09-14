@@ -1,5 +1,6 @@
 import { InlineKeyboard } from 'grammy';
-import type { Bill } from '../core/types.js';
+import { claimCounts, unclaimedUnits, unitCount } from '../core/claims.js';
+import type { Bill, BillItem } from '../core/types.js';
 import { personEmoji } from './emoji.js';
 
 /**
@@ -29,9 +30,9 @@ export function billKeyboard(bill: Bill): InlineKeyboard {
     for (const it of bill.items) {
       // Left is just a label. Right claims the item for whoever taps it (auto-joins them);
       // tap again to release. Shows who took it — 🌐 means nobody, so it's split between everyone.
-      const label = `${it.idx}. ${truncate(it.title, 18)}`;
-      const who = it.claimedBy.length ? it.claimedBy.map(personEmoji).join('') : '🌐';
-      kb.text(label, cb.noop(bill)).text(who, cb.toggle(bill, it.idx)).row();
+      const qty = unitCount(it) > 1 ? ` ×${it.qty}` : '';
+      const label = `${it.idx}. ${truncate(it.title, 18 - qty.length)}${qty}`;
+      kb.text(label, cb.noop(bill)).text(claimButton(it), cb.toggle(bill, it.idx)).row();
     }
   }
 
@@ -41,6 +42,26 @@ export function billKeyboard(bill: Bill): InlineKeyboard {
     .row();
   kb.text('🧮 Посчитать', cb.calc(bill));
   return kb;
+}
+
+/**
+ * Right-column button: one emoji per unit taken, 🌐 per unit nobody took.
+ *   "Cola ×3", me ×2 + Ali ×1 → 🧑🧑🤠;  me ×1 only → 🧑🌐🌐;  nothing → 🌐
+ * Big quantities collapse to counts (🧑×7 🌐×3) so the button stays readable.
+ */
+const MAX_UNIT_EMOJIS = 6;
+
+function claimButton(it: BillItem): string {
+  const units = unitCount(it);
+  const free = unclaimedUnits(it);
+  if (units === 1) return it.claimedBy.length ? it.claimedBy.map(personEmoji).join('') : '🌐';
+
+  if (units <= MAX_UNIT_EMOJIS) {
+    return it.claimedBy.map(personEmoji).join('') + '🌐'.repeat(free);
+  }
+  const parts = [...claimCounts(it)].map(([u, n]) => `${personEmoji(u)}×${n}`);
+  if (free > 0) parts.push(`🌐×${free}`);
+  return parts.join(' ');
 }
 
 function truncate(s: string, n: number): string {

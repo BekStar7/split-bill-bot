@@ -1,3 +1,4 @@
+import { claimCounts, unitCount } from './claims.js';
 import { allocate, percentOf, sum } from './money.js';
 import type { Bill, Money, Settlement, SettlementLine, SplitResult, UserId } from './types.js';
 
@@ -7,7 +8,8 @@ import type { Bill, Money, Settlement, SettlementLine, SplitResult, UserId } fro
  * 1. Each participant gets a base share from items.
  *    - equal:    subtotal / n
  *    - itemized: shared items → everyone; claimed items → claimers;
- *                unclaimed items → everyone (and reported).
+ *                multi-unit items → each claimer pays for the units they took;
+ *                unclaimed items/units → everyone (and reported).
  * 2. Service fee, tip and discount are distributed proportionally to base share.
  * 3. Every distribution uses largest-remainder rounding so the sum is exact.
  */
@@ -22,11 +24,25 @@ export function splitBill(bill: Bill): SplitResult {
 
   const base = new Map<UserId, Money>(ids.map((id) => [id, 0]));
   const lines = new Map<UserId, SettlementLine[]>(ids.map((id) => [id, []]));
-  const unclaimedItemIdx: number[] = [];
+  const unclaimed: SplitResult['unclaimed'] = [];
 
   const addShare = (userId: UserId, line: SettlementLine) => {
     base.set(userId, (base.get(userId) ?? 0) + line.amount);
     lines.get(userId)?.push(line);
+  };
+
+  /** Split `amount` of `item` evenly between everyone. */
+  const shareWithAll = (item: Bill['items'][number], amount: Money, units?: number) => {
+    const shares = allocate(amount, ids.map(() => 1));
+    ids.forEach((userId, i) => {
+      addShare(userId, {
+        itemIdx: item.idx,
+        title: item.title,
+        splitBetween: ids.length,
+        amount: shares[i] ?? 0,
+        ...(units !== undefined ? { units } : {}),
+      });
+    });
   };
 
   if (bill.mode === 'equal') {
@@ -43,29 +59,49 @@ export function splitBill(bill: Bill): SplitResult {
   }
 
   for (const item of bill.mode === 'equal' ? [] : bill.items) {
-    let recipients: UserId[];
-
     if (item.shared) {
-      recipients = ids;
-    } else {
-      const claimers = item.claimedBy.filter((u) => base.has(u));
-      if (claimers.length === 0) {
-        unclaimedItemIdx.push(item.idx);
-        recipients = ids;
-      } else {
-        recipients = claimers;
-      }
+      shareWithAll(item, item.amount);
+      continue;
     }
 
-    const shares = allocate(item.amount, recipients.map(() => 1));
-    recipients.forEach((userId, i) => {
+    const units = unitCount(item);
+    const counts = new Map([...claimCounts(item)].filter(([u]) => base.has(u)));
+    const claimedUnits = sum([...counts.values()]);
+
+    if (claimedUnits === 0) {
+      unclaimed.push({ itemIdx: item.idx, title: item.title, units, ofUnits: units });
+      shareWithAll(item, item.amount, units > 1 ? units : undefined);
+      continue;
+    }
+
+    if (units === 1) {
+      // Single unit, possibly several people on it (a salad for two) — split evenly between them.
+      const claimers = [...counts.keys()];
+      const shares = allocate(item.amount, claimers.map(() => 1));
+      claimers.forEach((userId, i) => {
+        addShare(userId, { itemIdx: item.idx, title: item.title, splitBetween: claimers.length, amount: shares[i] ?? 0 });
+      });
+      continue;
+    }
+
+    // Multi-unit: everyone pays for the units they took; leftover units go to everyone.
+    const free = units - claimedUnits;
+    const claimers = [...counts.keys()];
+    const weights = [...counts.values(), ...(free > 0 ? [free] : [])];
+    const parts = allocate(item.amount, weights);
+    claimers.forEach((userId, i) => {
       addShare(userId, {
         itemIdx: item.idx,
         title: item.title,
-        splitBetween: recipients.length,
-        amount: shares[i] ?? 0,
+        splitBetween: 1,
+        amount: parts[i] ?? 0,
+        units: counts.get(userId) ?? 0,
       });
     });
+    if (free > 0) {
+      unclaimed.push({ itemIdx: item.idx, title: item.title, units: free, ofUnits: units });
+      shareWithAll(item, parts[claimers.length] ?? 0, free);
+    }
   }
 
   const serviceFee =
@@ -97,7 +133,8 @@ export function splitBill(bill: Bill): SplitResult {
     tip,
     discount,
     total: sum(settlements.map((s) => s.amount)),
-    unclaimedItemIdx,
+    unclaimedItemIdx: unclaimed.map((u) => u.itemIdx),
+    unclaimed,
   };
 }
 

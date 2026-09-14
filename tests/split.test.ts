@@ -128,3 +128,41 @@ describe('itemized mode', () => {
     expect(() => splitBill(baseBill({ participants: [] }))).toThrow();
   });
 });
+
+describe('multi-unit items', () => {
+  const cola = (claimedBy: string[]) => item(1, 'Cola Zero', 1500, { qty: 3, unitPrice: 500, claimedBy });
+
+  it('charges each person for the units they took', () => {
+    const bill = baseBill({ items: [cola(['beke', 'beke', 'aidar'])], total: 1500 });
+    const r = splitBill(bill);
+    expect(byUser(r)).toEqual({ beke: 1000, aidar: 500, daniyar: 0 });
+    expect(r.unclaimed).toEqual([]);
+    const beke = r.settlements.find((s) => s.userId === 'beke')!;
+    expect(beke.lines).toEqual([{ itemIdx: 1, title: 'Cola Zero', splitBetween: 1, amount: 1000, units: 2 }]);
+  });
+
+  it('splits untaken units between everyone and reports them', () => {
+    const bill = baseBill({ items: [cola(['beke', 'aidar'])], total: 1500 });
+    const r = splitBill(bill);
+    // 1 free unit (500) → ~167 each; largest-remainder keeps the sum exact.
+    expect(r.total).toBe(1500);
+    expect(byUser(r)).toEqual({ beke: 500 + 167, aidar: 500 + 167, daniyar: 166 });
+    expect(r.unclaimed).toEqual([{ itemIdx: 1, title: 'Cola Zero', units: 1, ofUnits: 3 }]);
+    expect(r.unclaimedItemIdx).toEqual([1]);
+  });
+
+  it('keeps the receipt total when unit price does not divide evenly', () => {
+    const bill = baseBill({
+      items: [item(1, 'Вода', 1000, { qty: 3, unitPrice: 333, claimedBy: ['beke', 'beke', 'aidar'] })],
+      total: 1000,
+    });
+    const r = splitBill(bill);
+    expect(r.total).toBe(1000);
+    expect(byUser(r)).toEqual({ beke: 667, aidar: 333, daniyar: 0 });
+  });
+
+  it('still splits a single-unit item evenly between several claimers', () => {
+    const bill = baseBill({ items: [item(1, 'Салат', 3000, { claimedBy: ['beke', 'aidar'] })], total: 3000 });
+    expect(byUser(splitBill(bill))).toEqual({ beke: 1500, aidar: 1500, daniyar: 0 });
+  });
+});

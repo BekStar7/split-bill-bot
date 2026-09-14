@@ -24,7 +24,11 @@ export interface BillItem {
   amount: Money;
   /** Shared items (hookah, bread, water) are split across ALL participants */
   shared: boolean;
-  /** Who marked this item as theirs (itemized mode) */
+  /**
+   * Who marked this item as theirs (itemized mode) — one entry per unit taken.
+   * On a multi-unit item (integer qty > 1) a user appears once per unit they took.
+   * See core/claims.ts for the rules.
+   */
   claimedBy: UserId[];
 }
 
@@ -63,6 +67,8 @@ export interface SettlementLine {
   /** How many people this item was split between */
   splitBetween: number;
   amount: Money;
+  /** Units of a multi-unit item covered by this line (omitted for single-unit items) */
+  units?: number;
 }
 
 export interface Settlement {
@@ -85,6 +91,8 @@ export interface SplitResult {
   discount: Money;
   /** Sum of all settlements — must equal computedTotal */
   total: Money;
-  /** Items nobody claimed in itemized mode (treated as shared) */
+  /** Items with at least one unclaimed unit in itemized mode (those units are treated as shared) */
   unclaimedItemIdx: number[];
+  /** Per-item detail for the above: how many units went to everyone */
+  unclaimed: Array<{ itemIdx: number; title: string; units: number; ofUnits: number }>;
 }
