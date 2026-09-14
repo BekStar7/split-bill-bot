@@ -15,7 +15,7 @@ const HELP = `👋 Я делю счета в чате.
 
 Команды:
 /help — эта справка
-/debtors — кто ещё должен по последнему посчитанному чеку в этом чате, с напоминалкой`;
+/debtors — кто ещё должен по всем посчитанным чекам в этом чате, с напоминалкой`;
 
 export function registerStart(bot: Composer<BotContext>): void {
   bot.command('help', (ctx) => ctx.reply(HELP, { parse_mode: 'HTML' }));

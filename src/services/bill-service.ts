@@ -128,11 +128,15 @@ export class BillService {
     return { bill, result: splitBill(bill) };
   }
 
-  /** The bill /debtors acts on: the most recently calculated one in this chat. */
-  latestForChat(chatId: number): { bill: Bill; result: SplitResult } {
-    const bill = this.repo.latestDoneByChat(chatId);
-    if (!bill) throw new BillNotFound(String(chatId));
-    return { bill, result: splitBill(bill) };
+  /** Every calculated bill in this chat that still has someone unpaid — what /debtors reports. */
+  openForChat(chatId: number): Array<{ bill: Bill; result: SplitResult }> {
+    return this.repo
+      .doneByChat(chatId)
+      .map((bill) => ({ bill, result: splitBill(bill) }))
+      .filter(({ bill, result }) => {
+        const paid = new Set(bill.paid ?? []);
+        return result.settlements.some((s) => !paid.has(s.userId));
+      });
   }
 
   canManage(bill: Bill, userId: UserId): boolean {

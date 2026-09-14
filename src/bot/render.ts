@@ -85,18 +85,37 @@ export function renderResult(bill: Bill, result: SplitResult): string {
   return [`💰 <b>Итого к оплате</b>`, '', ...sections, '', renderCheck(bill, result)].join('\n');
 }
 
-/** Reply for /debtors: who still owes, plus a ping to shame them into paying. */
-export function renderDebtors(bill: Bill, result: SplitResult): string {
-  const cur = bill.currency;
-  const paid = new Set(bill.paid ?? []);
-  const debtors = result.settlements.filter((s) => !paid.has(s.userId));
+/**
+ * Reply for /debtors: every still-open bill in the chat (someone hasn't marked paid), not just
+ * the latest — a chat can rack up two or three checks in one evening. One ping at the end
+ * covers everyone across all of them, de-duplicated.
+ */
+export function renderDebtors(open: Array<{ bill: Bill; result: SplitResult }>): string {
+  if (!open.length) return '✅ Все оплатили, долгов нет.';
 
-  if (!debtors.length) return '✅ Все оплатили, долгов нет.';
+  const pinged = new Map<string, string>();
+  const blocks = open.map(({ bill, result }) => {
+    const cur = bill.currency;
+    const paid = new Set(bill.paid ?? []);
+    const debtors = result.settlements.filter((s) => !paid.has(s.userId));
+    for (const s of debtors) pinged.set(s.userId, s.displayName);
 
-  const rows = debtors.map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
-  const ping = debtors.map((s) => mention(s.userId, s.displayName)).join(', ');
+    const rows = debtors.map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
+    return [`🧾 <b>Чек · ${formatBillDate(bill)}</b>`, ...rows].join('\n');
+  });
 
-  return ['❌ <b>Должники:</b>', ...rows, '', `Эй, ${ping}, погасите должок 👀`].join('\n');
+  const ping = [...pinged].map(([userId, name]) => mention(userId, name)).join(', ');
+
+  return ['❌ <b>Должники:</b>', '', blocks.join('\n\n'), '', `Эй, ${ping}, погасите должок 👀`].join('\n');
+}
+
+function formatBillDate(bill: Bill): string {
+  return new Date(bill.createdAt).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /** DM message: one person's share, line by line. */

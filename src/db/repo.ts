@@ -31,16 +31,15 @@ export class BillRepo {
     return row ? (row.data as Bill) : undefined;
   }
 
-  /** Most recently calculated bill in a chat — used by /debtors, which acts on "the" current bill. */
-  latestDoneByChat(chatId: number): Bill | undefined {
-    const row = this.db
+  /** Every calculated bill in a chat, most recent first — /debtors sweeps these for unpaid debts. */
+  doneByChat(chatId: number): Bill[] {
+    const rows = this.db
       .select()
       .from(bills)
       .where(and(eq(bills.chatId, chatId), eq(bills.status, 'done')))
       .orderBy(desc(bills.createdAt))
-      .limit(1)
-      .get();
-    return row ? (row.data as Bill) : undefined;
+      .all();
+    return rows.map((r) => r.data as Bill);
   }
 
   saveSettlements(bill: Bill, result: SplitResult): void {
