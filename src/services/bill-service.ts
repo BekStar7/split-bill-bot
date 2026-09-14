@@ -3,6 +3,7 @@ import { tapClaim } from '../core/claims.js';
 import { splitBill } from '../core/split.js';
 import type { Bill, Participant, SplitMode, SplitResult, UserId } from '../core/types.js';
 import type { BillRepo } from '../db/repo.js';
+import { normalizeParsed } from '../ocr/normalize.js';
 import type { ParsedBill } from '../ocr/schema.js';
 
 /**
@@ -12,7 +13,8 @@ import type { ParsedBill } from '../ocr/schema.js';
 export class BillService {
   constructor(private readonly repo: BillRepo) {}
 
-  createFromParsed(parsed: ParsedBill, ctx: { chatId: number; creator: Participant; currency: string }): Bill {
+  createFromParsed(raw: ParsedBill, ctx: { chatId: number; creator: Participant; currency: string }): Bill {
+    const parsed = normalizeParsed(raw);
     const bill: Bill = {
       id: nanoid(8),
       chatId: ctx.chatId,
@@ -103,6 +105,13 @@ export class BillService {
     return { bill, result };
   }
 
+  /** Result of an already-calculated bill. The split is deterministic, so we recompute instead of storing it twice. */
+  result(id: string): { bill: Bill; result: SplitResult } {
+    const bill = this.get(id);
+    if (bill.status !== 'done') throw new BillNotCalculated(id);
+    return { bill, result: splitBill(bill) };
+  }
+
   canManage(bill: Bill, userId: UserId): boolean {
     return bill.createdBy === userId;
   }
@@ -118,5 +127,11 @@ export class BillService {
 export class BillNotFound extends Error {
   constructor(id: string) {
     super(`Bill ${id} not found`);
+  }
+}
+
+export class BillNotCalculated extends Error {
+  constructor(id: string) {
+    super(`Bill ${id} is not calculated yet`);
   }
 }

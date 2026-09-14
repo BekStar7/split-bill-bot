@@ -3,7 +3,7 @@ import { GrammyError } from 'grammy';
 import type { Bill } from '../../core/types.js';
 import { BillNotFound } from '../../services/bill-service.js';
 import { participantFrom, type BotContext } from '../context.js';
-import { CB_RE, billKeyboard } from '../keyboards.js';
+import { CB_RE, billKeyboard, resultKeyboard } from '../keyboards.js';
 import { renderBill, renderClosed, renderResult } from '../render.js';
 
 /**
@@ -66,7 +66,10 @@ export function registerCallbacks(bot: Composer<BotContext>): void {
         cancelPendingEdit(done.id);
         try {
           await safeEdit(ctx, renderClosed(done), billKeyboard(done));
-          await ctx.reply(renderResult(done, result), { parse_mode: 'HTML' });
+          await ctx.reply(renderResult(done, result), {
+            parse_mode: 'HTML',
+            reply_markup: resultKeyboard(done, ctx.me.username),
+          });
         } finally {
           await answer(ctx);
         }

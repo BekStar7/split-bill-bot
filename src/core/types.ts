@@ -89,8 +89,15 @@ export interface SplitResult {
   serviceFee: Money;
   tip: Money;
   discount: Money;
-  /** Sum of all settlements — must equal computedTotal */
+  /** Sum of all settlements — equals the receipt total when `gap` was absorbed */
   total: Money;
+  /**
+   * Receipt total minus what items + fees explain. When small enough it is split
+   * equally between everyone (and included in `total`); otherwise left unassigned
+   * so the discrepancy stays visible.
+   */
+  gap: Money;
+  gapAbsorbed: boolean;
   /** Items with at least one unclaimed unit in itemized mode (those units are treated as shared) */
   unclaimedItemIdx: number[];
   /** Per-item detail for the above: how many units went to everyone */

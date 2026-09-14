@@ -64,27 +64,34 @@ export function renderClosed(bill: Bill): string {
   ].join('\n');
 }
 
+/** Group message: just who owes what. Per-person breakdown lives in the DM (renderMyDetails). */
 export function renderResult(bill: Bill, result: SplitResult): string {
   const cur = bill.currency;
-  const rows = result.settlements
+  const rows = [...result.settlements]
     .sort((a, b) => b.amount - a.amount)
-    .map((s) => {
-      const items = s.lines
-        .map((l) => {
-          const units = l.units && l.units > 1 ? ` ×${l.units}` : '';
-          const div = l.splitBetween > 1 ? ` ÷${l.splitBetween}` : '';
-          return `${esc(l.title)}${units}${div}`;
-        })
-        .join(', ');
-      const adj = s.adjustments ? ` + сервис ${formatMoney(s.adjustments)}` : '';
-      return `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>\n<i>${items}${adj}</i>`;
-    });
+    .map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
 
-  const diff = reconcile(bill, result);
-  const check =
-    diff === 0
-      ? `✔ Сходится с чеком: ${formatMoney(bill.total, cur)}`
-      : `⚠️ Расхождение с чеком: ${formatMoney(diff, cur)} (в чеке ${formatMoney(bill.total, cur)}, посчитано ${formatMoney(result.total, cur)})`;
+  return [`💰 <b>Итого к оплате</b>`, '', ...rows, '', renderCheck(bill, result)].join('\n');
+}
+
+/** DM message: one person's share, line by line. */
+export function renderMyDetails(bill: Bill, result: SplitResult, userId: string): string {
+  const cur = bill.currency;
+  const s = result.settlements.find((x) => x.userId === userId);
+  if (!s) return 'Тебя нет в этом счёте 🤷';
+
+  const lines = s.lines.map((l) => {
+    const units = l.units && l.units > 1 ? ` ×${l.units}` : '';
+    const div = l.splitBetween > 1 ? ` (÷${l.splitBetween})` : '';
+    return `• ${esc(l.title)}${units}${div} — ${formatMoney(l.amount, cur)}`;
+  });
+
+  const extras: string[] = [];
+  if (s.adjustments) {
+    const what =
+      s.adjustments > 0 ? 'Сервис / надбавки, твоя доля' : 'Скидка, твоя доля';
+    extras.push(`${what}: ${formatMoney(s.adjustments, cur)}`);
+  }
 
   const unclaimed = result.unclaimed.length
     ? `\nℹ️ Никто не отметил — разделено на всех: ${result.unclaimed
@@ -92,5 +99,31 @@ export function renderResult(bill: Bill, result: SplitResult): string {
         .join(', ')}.`
     : '';
 
-  return [`💰 <b>Итого к оплате</b>`, '', ...rows, '', check + unclaimed].join('\n');
+  return [
+    `🧾 <b>Твоя часть счёта</b> · итого <b>${formatMoney(s.amount, cur)}</b>`,
+    '',
+    ...lines,
+    `Позиции: ${formatMoney(s.base, cur)}`,
+    ...extras,
+    '',
+    renderCheck(bill, result) + unclaimed,
+  ].join('\n');
+}
+
+function renderCheck(bill: Bill, result: SplitResult): string {
+  const cur = bill.currency;
+  const diff = reconcile(bill, result);
+  let check: string;
+  if (diff !== 0) {
+    check = `⚠️ Расхождение с чеком: ${formatMoney(diff, cur)} (в чеке ${formatMoney(bill.total, cur)}, посчитано ${formatMoney(result.total, cur)})`;
+  } else if (result.gapAbsorbed) {
+    const n = result.settlements.length;
+    check =
+      result.gap > 0
+        ? `✔ Сходится с чеком: ${formatMoney(bill.total, cur)}. В чеке на ${formatMoney(result.gap, cur)} больше, чем сумма позиций и сервиса — разница разделена на всех (${n}) поровну.`
+        : `✔ Сходится с чеком: ${formatMoney(bill.total, cur)}. В чеке на ${formatMoney(-result.gap, cur)} меньше, чем сумма позиций и сервиса — разница вычтена у всех (${n}) поровну.`;
+  } else {
+    check = `✔ Сходится с чеком: ${formatMoney(bill.total, cur)}`;
+  }
+  return check;
 }

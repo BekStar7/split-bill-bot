@@ -129,6 +129,46 @@ describe('itemized mode', () => {
   });
 });
 
+describe('receipt total gap', () => {
+  it('splits a small unexplained surplus equally so the sum matches the receipt', () => {
+    // items 30000 + fee 3000 = 33000 explained, receipt says 33900 → 900 extra → 300 each
+    const bill = baseBill({
+      items: [item(1, 'Стейк', 30000, { claimedBy: ['beke'] })],
+      serviceFeePct: 10,
+      total: 33900,
+    });
+    const r = splitBill(bill);
+    expect(r.gap).toBe(900);
+    expect(r.gapAbsorbed).toBe(true);
+    expect(r.total).toBe(33900);
+    expect(reconcile(bill, r)).toBe(0);
+    expect(byUser(r)).toEqual({ beke: 33300, aidar: 300, daniyar: 300 });
+  });
+
+  it('absorbs a small shortfall the same way', () => {
+    const bill = baseBill({ items: [item(1, 'Стейк', 30000, { claimedBy: ['beke'] })], total: 29700 });
+    const r = splitBill(bill);
+    expect(r.gap).toBe(-300);
+    expect(byUser(r)).toEqual({ beke: 29900, aidar: -100, daniyar: -100 });
+    expect(r.total).toBe(29700);
+  });
+
+  it('leaves a huge gap visible instead of splitting it (total probably misread)', () => {
+    const bill = baseBill({ items: [item(1, 'Стейк', 30000, { claimedBy: ['beke'] })], total: 300000 });
+    const r = splitBill(bill);
+    expect(r.gapAbsorbed).toBe(false);
+    expect(r.total).toBe(30000);
+    expect(reconcile(bill, r)).toBe(270000);
+  });
+
+  it('reports no gap when everything adds up', () => {
+    const bill = baseBill({ items: [item(1, 'Стейк', 30000, { claimedBy: ['beke'] })], total: 30000 });
+    const r = splitBill(bill);
+    expect(r.gap).toBe(0);
+    expect(r.gapAbsorbed).toBe(false);
+  });
+});
+
 describe('multi-unit items', () => {
   const cola = (claimedBy: string[]) => item(1, 'Cola Zero', 1500, { qty: 3, unitPrice: 500, claimedBy });
 

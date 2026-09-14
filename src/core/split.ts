@@ -113,9 +113,17 @@ export function splitBill(bill: Bill): SplitResult {
   const baseShares = ids.map((id) => base.get(id) ?? 0);
   const adjustments = allocate(adjustmentTotal, baseShares);
 
+  // Whatever the receipt charges beyond items + fees (a misread fee line, a rounding
+  // quirk, an unlisted surcharge) is still money the table owes. Absorb it equally —
+  // unless it's so large the OCR probably misread the total itself.
+  const explained = sum(baseShares) + adjustmentTotal;
+  const gap = bill.total - explained;
+  const gapAbsorbed = gap !== 0 && Math.abs(gap) <= explained * MAX_ABSORBED_GAP_RATIO;
+  const gapShares = gapAbsorbed ? allocate(gap, ids.map(() => 1)) : ids.map(() => 0);
+
   const settlements: Settlement[] = participants.map((p, i) => {
     const b = baseShares[i] ?? 0;
-    const adj = adjustments[i] ?? 0;
+    const adj = (adjustments[i] ?? 0) + (gapShares[i] ?? 0);
     return {
       userId: p.userId,
       displayName: p.displayName,
@@ -133,10 +141,15 @@ export function splitBill(bill: Bill): SplitResult {
     tip,
     discount,
     total: sum(settlements.map((s) => s.amount)),
+    gap,
+    gapAbsorbed,
     unclaimedItemIdx: unclaimed.map((u) => u.itemIdx),
     unclaimed,
   };
 }
+
+/** Gaps above this share of the explained total are left visible instead of split. */
+const MAX_ABSORBED_GAP_RATIO = 0.25;
 
 /** Difference between what the receipt says and what we computed. 0 = perfect. */
 export function reconcile(bill: Bill, result: SplitResult): Money {

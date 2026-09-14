@@ -44,6 +44,18 @@ export function billKeyboard(bill: Bill): InlineKeyboard {
   return kb;
 }
 
+/** `/start` payload that asks for a personal breakdown of a bill: `d_<billId>`. */
+export const DETAILS_PREFIX = 'd_';
+
+/**
+ * Under the "who owes what" message. A t.me deep link opens a private chat with the bot
+ * and sends `/start d_<billId>` — works even for people who never talked to the bot,
+ * which a plain callback couldn't (bots can't DM first).
+ */
+export function resultKeyboard(bill: Bill, botUsername: string): InlineKeyboard {
+  return new InlineKeyboard().url('🔎 Подробнее (в личке)', `https://t.me/${botUsername}?start=${DETAILS_PREFIX}${bill.id}`);
+}
+
 /**
  * Right-column button: one emoji per unit taken, 🌐 per unit nobody took.
  *   "Cola ×3", me ×2 + Ali ×1 → 🧑🧑🤠;  me ×1 only → 🧑🌐🌐;  nothing → 🌐

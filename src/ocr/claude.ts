@@ -6,8 +6,9 @@ Rules:
 - Return every purchased line item. Skip headers, addresses, tax IDs, payment method lines.
 - Prices are whole currency units (tenge/rubles). Drop kopecks/tiyn by rounding.
 - If a line shows quantity (×2, 2 шт, 2 x), report qty and unitPrice; amount is the line total.
-- "Сервис", "обслуживание", "service charge" → serviceFeePct if shown as %, otherwise serviceFeeAbs.
-- "Скидка", "discount" → discountAbs as a positive number.
+- "Сервис", "обслуживание", "надбавка", "service charge" is a SURCHARGE added to the bill → serviceFeeAbs if a sum is printed (preferred), serviceFeePct if only a percent is printed. Never report it as a discount.
+- "Скидка", "discount" is subtracted from the bill → discountAbs as a positive number. Only report it when the receipt has an explicit discount line.
+- Each receipt line is either a fee or a discount, never both. Sanity check: sum(items) + service − discount must equal total; if it doesn't, re-read the fee/discount lines.
 - total is the final amount the customer pays ("Итого", "К оплате", "Total").
 - If unsure about a value, still fill your best guess and describe the doubt in notes.
 Always respond by calling the extract_bill tool.`;
