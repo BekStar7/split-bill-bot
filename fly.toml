@@ -1,31 +1,24 @@
-# fly.toml app configuration file generated for split-bill-bot on 2026-09-14T16:43:41Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+app = "split-bill-bot"
+primary_region = "ams"
 
-app = 'split-bill-bot'
-primary_region = 'ams'
+# No [http_service] / [[services]] on purpose: the bot uses long polling and
+# never listens on a port. Declaring one would attach health checks that can
+# never pass, and Fly would restart the machine forever.
 
 [build]
 
-[deploy]
-  strategy = 'immediate'
-
 [env]
-  DATABASE_PATH = '/app/data/splitcheck.db'
+  DATABASE_PATH = "/app/data/splitcheck.db"
 
-[[mounts]]
-  source = 'data'
-  destination = '/app/data'
+[mounts]
+  source = "data"
+  destination = "/app/data"
 
-[http_service]
-  internal_port = 3000
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+[deploy]
+  # Telegram allows exactly one getUpdates consumer per token, and SQLite allows
+  # one writer. Replace the machine in place instead of briefly running two.
+  strategy = "immediate"
 
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '256mb'
+  size = "shared-cpu-1x"
+  memory = "256mb"
