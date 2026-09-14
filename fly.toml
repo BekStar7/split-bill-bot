@@ -1,0 +1,24 @@
+app = "split-bill-bot"
+primary_region = "ams"
+
+# No [http_service] / [[services]] on purpose: the bot uses long polling and
+# never listens on a port. Declaring one would attach health checks that can
+# never pass, and Fly would restart the machine forever.
+
+[build]
+
+[env]
+  DATABASE_PATH = "/app/data/splitcheck.db"
+
+[mounts]
+  source = "data"
+  destination = "/app/data"
+
+[deploy]
+  # Telegram allows exactly one getUpdates consumer per token, and SQLite allows
+  # one writer. Replace the machine in place instead of briefly running two.
+  strategy = "immediate"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
