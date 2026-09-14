@@ -100,8 +100,10 @@ export function renderDebtors(open: Array<{ bill: Bill; result: SplitResult }>):
     const debtors = result.settlements.filter((s) => !paid.has(s.userId));
     for (const s of debtors) pinged.set(s.userId, s.displayName);
 
+    const link = messageLink(bill, bill.resultMessageId ?? bill.messageId);
+    const title = `🧾 <b>Чек · ${formatBillDate(bill)}</b>${link ? ` · <a href="${link}">открыть</a>` : ''}`;
     const rows = debtors.map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
-    return [`🧾 <b>Чек · ${formatBillDate(bill)}</b>`, ...rows].join('\n');
+    return [title, ...rows].join('\n');
   });
 
   const ping = [...pinged].map(([userId, name]) => mention(userId, name)).join(', ');
@@ -116,6 +118,12 @@ function formatBillDate(bill: Bill): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function messageLink(bill: Bill, messageId: number | undefined): string | undefined {
+  const chatId = String(bill.chatId);
+  if (!messageId || !chatId.startsWith('-100')) return undefined;
+  return `https://t.me/c/${chatId.slice(4)}/${messageId}`;
 }
 
 /** DM message: one person's share, line by line. */
