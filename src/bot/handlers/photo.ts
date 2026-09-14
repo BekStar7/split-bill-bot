@@ -6,10 +6,10 @@ import { renderBill } from '../render.js';
 
 export function registerPhoto(bot: Composer<BotContext>): void {
   bot.on('message:photo', async (ctx) => {
-    // In groups, react only to photos that mention the bot or are captioned with "чек"/"счет"
-    // to avoid burning API credits on random photos. In private chats — always.
-    if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.caption)) {
-      ctx.deps.log.info({ chatId: ctx.chat.id, caption: ctx.message.caption }, 'group photo ignored: no keyword/mention');
+    // In groups, react only to photos whose caption mentions the bot — never to random photos
+    // or to words like "чек", which come up in normal conversation. In private chats — always.
+    if (ctx.chat.type !== 'private' && !mentionsBot(ctx, ctx.message.caption)) {
+      ctx.deps.log.info({ chatId: ctx.chat.id }, 'group photo ignored: bot not mentioned in caption');
       return;
     }
 
@@ -17,24 +17,22 @@ export function registerPhoto(bot: Composer<BotContext>): void {
     await processReceiptPhoto(ctx, photo, ctx.message.message_id);
   });
 
-  // Replying with e.g. "чек" to an earlier photo message also triggers processing —
+  // Replying "@bot" to an earlier photo message also triggers processing —
   // useful when the photo was sent without a caption.
   bot.on('message:text', async (ctx) => {
     const replied = ctx.message.reply_to_message;
     if (!replied) return;
-    if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.text)) {
-      ctx.deps.log.info({ chatId: ctx.chat.id, text: ctx.message.text }, 'reply ignored: no keyword/mention');
-      return;
-    }
+    if (ctx.chat.type !== 'private' && !mentionsBot(ctx, ctx.message.text)) return;
 
     const replyPhoto = replied.photo;
     if (!replyPhoto) {
       // Someone explicitly asked us about this message, but there's no photo we can read —
       // most often it was posted before the bot joined the chat (bots can't see history).
-      if (looksLikeBillRequest(ctx, ctx.message.text)) {
-        await ctx.reply('Не вижу фото в этом сообщении 🙈 Если чек прислали до того, как меня добавили в чат, я не могу его прочитать — пришли фото ещё раз с подписью «чек».', {
-          reply_to_message_id: ctx.message.message_id,
-        });
+      if (mentionsBot(ctx, ctx.message.text)) {
+        await ctx.reply(
+          `Не вижу фото в этом сообщении 🙈 Если чек прислали до того, как меня добавили в чат, я не могу его прочитать — пришли фото ещё раз с подписью @${ctx.me.username}.`,
+          { reply_to_message_id: ctx.message.message_id },
+        );
       }
       return;
     }
@@ -86,8 +84,7 @@ async function processReceiptPhoto(ctx: BotContext, photo: PhotoSize, replyToMes
   }
 }
 
-function looksLikeBillRequest(ctx: Context, text: string | undefined): boolean {
+function mentionsBot(ctx: Context, text: string | undefined): boolean {
   const t = text?.toLowerCase() ?? '';
-  const me = ctx.me.username.toLowerCase();
-  return t.includes(`@${me}`) || /чек|счет|счёт|bill|split/.test(t);
+  return t.includes(`@${ctx.me.username.toLowerCase()}`);
 }
