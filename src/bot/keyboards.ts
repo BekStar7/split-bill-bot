@@ -1,23 +1,24 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bill } from '../core/types.js';
+import { personEmoji } from './emoji.js';
 
 /**
  * Callback data format (≤64 bytes): `<action>:<billId>[:<arg>]`
  *   j   join/leave
  *   m   set mode         arg: e | i
  *   t   toggle claim     arg: itemIdx
- *   s   toggle shared    arg: itemIdx
  *   c   calculate
+ *   n   no-op (Telegram has no inert buttons, so labels answer silently)
  */
 export const cb = {
   join: (b: Bill) => `j:${b.id}`,
   mode: (b: Bill, m: 'e' | 'i') => `m:${b.id}:${m}`,
   toggle: (b: Bill, idx: number) => `t:${b.id}:${idx}`,
-  shared: (b: Bill, idx: number) => `s:${b.id}:${idx}`,
   calc: (b: Bill) => `c:${b.id}`,
+  noop: (b: Bill) => `n:${b.id}`,
 };
 
-export const CB_RE = /^([jmtsc]):([A-Za-z0-9_-]{6,12})(?::(.+))?$/;
+export const CB_RE = /^([jmtcn]):([A-Za-z0-9_-]{6,12})(?::(.+))?$/;
 
 export function billKeyboard(bill: Bill): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -26,8 +27,11 @@ export function billKeyboard(bill: Bill): InlineKeyboard {
 
   if (bill.mode === 'itemized' && bill.status === 'assigning') {
     for (const it of bill.items) {
-      const label = `${it.idx}. ${truncate(it.title, 18)}${it.shared ? ' 🌐' : it.claimedBy.length ? ` (${it.claimedBy.length})` : ''}`;
-      kb.text(label, cb.toggle(bill, it.idx)).text(it.shared ? '👤' : '🌐', cb.shared(bill, it.idx)).row();
+      // Left is just a label. Right claims the item for whoever taps it (auto-joins them);
+      // tap again to release. Shows who took it — 🌐 means nobody, so it's split between everyone.
+      const label = `${it.idx}. ${truncate(it.title, 18)}`;
+      const who = it.claimedBy.length ? it.claimedBy.map(personEmoji).join('') : '🌐';
+      kb.text(label, cb.noop(bill)).text(who, cb.toggle(bill, it.idx)).row();
     }
   }
 

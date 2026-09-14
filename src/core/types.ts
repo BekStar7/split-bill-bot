@@ -31,6 +31,8 @@ export interface BillItem {
 export interface Participant {
   userId: UserId;
   displayName: string;
+  /** Got in by tapping an item rather than "join" — drops out again once they release their last item */
+  autoJoined?: boolean;
 }
 
 export interface Bill {

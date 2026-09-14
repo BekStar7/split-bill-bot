@@ -1,8 +1,12 @@
 import { formatMoney } from '../core/money.js';
 import { reconcile } from '../core/split.js';
 import type { Bill, SplitResult } from '../core/types.js';
+import { personEmoji } from './emoji.js';
 
 const esc = (s: string) => s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]!);
+
+/** Pings the user in the message, even without a @username — works as long as they've sent a message in this chat. */
+const mention = (userId: string, name: string) => `<a href="tg://user?id=${userId}">${esc(name)}</a>`;
 
 export function renderBill(bill: Bill): string {
   const cur = bill.currency;
@@ -11,9 +15,10 @@ export function renderBill(bill: Bill): string {
   const lines = bill.items.map((it) => {
     const qty = it.qty !== 1 ? ` ×${it.qty}` : '';
     let who = '';
-    if (it.shared) who = ' — 🌐 общая';
-    else if (bill.mode === 'itemized' && it.claimedBy.length) {
-      who = ' — ' + it.claimedBy.map((u) => esc(names.get(u) ?? u)).join(', ');
+    if (bill.mode === 'itemized' && bill.status === 'assigning') {
+      who = it.claimedBy.length
+        ? ' — ' + it.claimedBy.map((u) => `${personEmoji(u)} ${esc(names.get(u) ?? u)}`).join(', ')
+        : ' — 🌐 на всех';
     }
     return `${it.idx}. ${esc(it.title)}${qty} — <b>${formatMoney(it.amount)}</b>${who}`;
   });
@@ -35,14 +40,23 @@ export function renderBill(bill: Bill): string {
     '',
     [fee, disc].filter(Boolean).join(' · '),
     `Режим: <b>${mode}</b>`,
-    `Участники (${bill.participants.length}): ${bill.participants.map((p) => esc(p.displayName)).join(', ')}`,
+    `Участники (${bill.participants.length}): ${bill.participants.map((p) => `${personEmoji(p.userId)} ${esc(p.displayName)}`).join(', ')}`,
     bill.mode === 'itemized' && bill.status === 'assigning'
-      ? '\n👇 Отметьте свои позиции кнопками ниже'
+      ? '\n👇 Жми справа от позиции, чтобы забрать её себе (можно нескольким — разделится между вами)\n🌐 — никто не забрал, разделится на всех поровну'
       : '',
   ]
     .filter((l) => l !== null)
     .join('\n')
     .trim();
+}
+
+/** Collapsed view shown in place of the full itemized bill once it's calculated. */
+export function renderClosed(bill: Bill): string {
+  return [
+    `🧾 <b>Счёт</b> · ${bill.items.length} позиций · итого <b>${formatMoney(bill.total, bill.currency)}</b>`,
+    '',
+    '✅ Посчитан — итоги в сообщении ниже 👇',
+  ].join('\n');
 }
 
 export function renderResult(bill: Bill, result: SplitResult): string {
@@ -54,7 +68,7 @@ export function renderResult(bill: Bill, result: SplitResult): string {
         .map((l) => (l.splitBetween > 1 ? `${esc(l.title)} ÷${l.splitBetween}` : esc(l.title)))
         .join(', ');
       const adj = s.adjustments ? ` + сервис ${formatMoney(s.adjustments)}` : '';
-      return `<b>${esc(s.displayName)}</b> — <b>${formatMoney(s.amount, cur)}</b>\n<i>${items}${adj}</i>`;
+      return `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>\n<i>${items}${adj}</i>`;
     });
 
   const diff = reconcile(bill, result);

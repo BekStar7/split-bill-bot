@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { Bill, SplitResult } from '../core/types.js';
+import type { ParsedBill } from '../ocr/schema.js';
 import type { Db } from './client.js';
-import { bills, settlements } from './schema.js';
+import { bills, receiptCache, settlements } from './schema.js';
 
 export class BillRepo {
   constructor(private readonly db: Db) {}
@@ -44,6 +45,23 @@ export class BillRepo {
           createdAt: now,
         })),
       )
+      .run();
+  }
+}
+
+export class ReceiptCacheRepo {
+  constructor(private readonly db: Db) {}
+
+  get(hash: string): ParsedBill | undefined {
+    const row = this.db.select().from(receiptCache).where(eq(receiptCache.hash, hash)).get();
+    return row ? (row.parsed as ParsedBill) : undefined;
+  }
+
+  save(hash: string, parsed: ParsedBill): void {
+    this.db
+      .insert(receiptCache)
+      .values({ hash, parsed, createdAt: Date.now() })
+      .onConflictDoNothing()
       .run();
   }
 }

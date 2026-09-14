@@ -17,6 +17,17 @@ export const bills = sqliteTable('bills', {
   data: text('data', { mode: 'json' }).notNull(),
 });
 
+/**
+ * Caches OCR results by receipt image hash (sha256 of the raw bytes) so that
+ * re-uploading (or replying to) the same photo doesn't burn another Anthropic call.
+ */
+export const receiptCache = sqliteTable('receipt_cache', {
+  hash: text('hash').primaryKey(),
+  /** Parsed ParsedBill, JSON */
+  parsed: text('parsed', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
 export const settlements = sqliteTable('settlements', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   billId: text('bill_id')

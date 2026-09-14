@@ -162,7 +162,7 @@ splitcheck-bot/
 │   │   ├── handlers/
 │   │   │   ├── start.ts      # /start, /help
 │   │   │   ├── photo.ts      # фото → OCR → draft bill
-│   │   │   ├── callbacks.ts  # inline-кнопки (join, mode, toggle, shared, calc)
+│   │   │   ├── callbacks.ts  # inline-кнопки (join, mode, toggle, calc)
 │   │   │   └── edit.ts       # reply-правки позиций
 │   │   ├── keyboards.ts      # построение inline-клавиатур
 │   │   └── render.ts         # текст сообщений (bill, result)

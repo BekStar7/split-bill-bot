@@ -71,23 +71,27 @@ export class BillService {
     });
   }
 
-  toggleClaim(id: string, itemIdx: number, userId: UserId): Bill {
+  toggleClaim(id: string, itemIdx: number, p: Participant): Bill {
     return this.update(id, (b) => {
       const item = b.items.find((i) => i.idx === itemIdx);
       if (!item || item.shared) return;
-      if (!b.participants.some((p) => p.userId === userId)) return;
-      item.claimedBy = item.claimedBy.includes(userId)
-        ? item.claimedBy.filter((u) => u !== userId)
-        : [...item.claimedBy, userId];
-    });
-  }
 
-  toggleShared(id: string, itemIdx: number): Bill {
-    return this.update(id, (b) => {
-      const item = b.items.find((i) => i.idx === itemIdx);
-      if (!item) return;
-      item.shared = !item.shared;
-      if (item.shared) item.claimedBy = [];
+      if (!b.participants.some((x) => x.userId === p.userId)) {
+        b.participants.push({ ...p, autoJoined: true });
+      }
+
+      const releasing = item.claimedBy.includes(p.userId);
+      item.claimedBy = releasing
+        ? item.claimedBy.filter((u) => u !== p.userId)
+        : [...item.claimedBy, p.userId];
+
+      if (releasing) {
+        const me = b.participants.find((x) => x.userId === p.userId);
+        const stillHasItems = b.items.some((i) => i.claimedBy.includes(p.userId));
+        if (me?.autoJoined && !stillHasItems && b.participants.length > 1) {
+          b.participants = b.participants.filter((x) => x.userId !== p.userId);
+        }
+      }
     });
   }
 

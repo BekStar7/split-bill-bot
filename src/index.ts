@@ -3,7 +3,8 @@ import pino from 'pino';
 import { createBot } from './bot/bot.js';
 import { loadConfig } from './config.js';
 import { createDb } from './db/client.js';
-import { BillRepo } from './db/repo.js';
+import { BillRepo, ReceiptCacheRepo } from './db/repo.js';
+import { createCachedOcr } from './ocr/cache.js';
 import { createClaudeOcr } from './ocr/claude.js';
 import { BillService } from './services/bill-service.js';
 
@@ -15,7 +16,8 @@ const log = pino({
 
 const db = createDb(config.DATABASE_PATH);
 const bills = new BillService(new BillRepo(db));
-const ocr = createClaudeOcr({ apiKey: config.ANTHROPIC_API_KEY, model: config.ANTHROPIC_MODEL });
+const claudeOcr = createClaudeOcr({ apiKey: config.ANTHROPIC_API_KEY, model: config.ANTHROPIC_MODEL });
+const ocr = createCachedOcr(claudeOcr, new ReceiptCacheRepo(db), log);
 
 const bot = createBot({ config, log, ocr, bills });
 

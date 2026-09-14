@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ClaudeCodeTabState">
+    <option name="tabSessions">
+      <map>
+        <entry key="0">
+          <value>
+            <TabSessionState>
+              <option name="provider" value="claude" />
+              <option name="sessionId" value="cbfec680-eab1-47ab-a3f9-479981a435a3" />
+              <option name="cwd" value="$PROJECT_DIR$" />
+              <option name="model" value="claude-sonnet-5" />
+              <option name="permissionMode" value="default" />
+            </TabSessionState>
+          </value>
+        </entry>
+        <entry key="1">
+          <value>
+            <TabSessionState>
+              <option name="provider" value="claude" />
+              <option name="sessionId" value="26e0d66a-ee8f-46fd-a1ae-02a62955c039" />
+              <option name="cwd" value="$PROJECT_DIR$" />
+              <option name="model" value="claude-opus-5" />
+              <option name="permissionMode" value="default" />
+            </TabSessionState>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="tabCount" value="2" />
+  </component>
+</project>

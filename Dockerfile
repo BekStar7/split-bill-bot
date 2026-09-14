@@ -2,11 +2,12 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
-COPY package*.json ./
-RUN npm ci
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build && npm prune --omit=dev
+RUN pnpm run build && pnpm prune --prod
 
 # ---- runtime stage ----
 FROM node:22-alpine

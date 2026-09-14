@@ -1,3 +1,4 @@
+import { apiThrottler } from '@grammyjs/transformer-throttler';
 import { Bot, Composer } from 'grammy';
 import type { BotContext, Deps } from './context.js';
 import { registerCallbacks } from './handlers/callbacks.js';
@@ -6,6 +7,10 @@ import { registerStart } from './handlers/start.js';
 
 export function createBot(deps: Deps): Bot<BotContext> {
   const bot = new Bot<BotContext>(deps.config.BOT_TOKEN);
+
+  // Telegram flood-limits edits to the same message (~1/s) and group messages overall.
+  // Queue + auto-retry outgoing API calls instead of crashing on 429.
+  bot.api.config.use(apiThrottler());
 
   bot.use((ctx, next) => {
     ctx.deps = deps;
