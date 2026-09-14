@@ -2,6 +2,7 @@ import { apiThrottler } from '@grammyjs/transformer-throttler';
 import { Bot, Composer } from 'grammy';
 import type { BotContext, Deps } from './context.js';
 import { registerCallbacks } from './handlers/callbacks.js';
+import { registerDebtors } from './handlers/debtors.js';
 import { registerPhoto } from './handlers/photo.js';
 import { registerStart } from './handlers/start.js';
 
@@ -26,6 +27,7 @@ export function createBot(deps: Deps): Bot<BotContext> {
   registerStart(composer);
   registerPhoto(composer);
   registerCallbacks(composer);
+  registerDebtors(composer);
   bot.use(composer);
 
   bot.catch((err) => {

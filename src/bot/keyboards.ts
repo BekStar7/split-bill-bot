@@ -1,6 +1,6 @@
 import { InlineKeyboard } from 'grammy';
 import { claimCounts, unclaimedUnits, unitCount } from '../core/claims.js';
-import type { Bill, BillItem } from '../core/types.js';
+import type { Bill, BillItem, SplitResult, UserId } from '../core/types.js';
 import { personEmoji } from './emoji.js';
 
 /**
@@ -9,6 +9,7 @@ import { personEmoji } from './emoji.js';
  *   m   set mode         arg: e | i
  *   t   toggle claim     arg: itemIdx
  *   c   calculate
+ *   p   toggle paid       arg: userId
  *   n   no-op (Telegram has no inert buttons, so labels answer silently)
  */
 export const cb = {
@@ -16,10 +17,11 @@ export const cb = {
   mode: (b: Bill, m: 'e' | 'i') => `m:${b.id}:${m}`,
   toggle: (b: Bill, idx: number) => `t:${b.id}:${idx}`,
   calc: (b: Bill) => `c:${b.id}`,
+  pay: (b: Bill, userId: UserId) => `p:${b.id}:${userId}`,
   noop: (b: Bill) => `n:${b.id}`,
 };
 
-export const CB_RE = /^([jmtcn]):([A-Za-z0-9_-]{6,12})(?::(.+))?$/;
+export const CB_RE = /^([jmtcnp]):([A-Za-z0-9_-]{6,12})(?::(.+))?$/;
 
 export function billKeyboard(bill: Bill): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -48,12 +50,26 @@ export function billKeyboard(bill: Bill): InlineKeyboard {
 export const DETAILS_PREFIX = 'd_';
 
 /**
- * Under the "who owes what" message. A t.me deep link opens a private chat with the bot
- * and sends `/start d_<billId>` — works even for people who never talked to the bot,
- * which a plain callback couldn't (bots can't DM first).
+ * Under the "who owes what" message: one row per person to mark them paid/unpaid, plus a
+ * t.me deep link that opens a private chat with the bot and sends `/start d_<billId>` —
+ * works even for people who never talked to the bot, which a plain callback couldn't
+ * (bots can't DM first). Unpaid people are listed first so there's something to act on.
  */
-export function resultKeyboard(bill: Bill, botUsername: string): InlineKeyboard {
-  return new InlineKeyboard().url('🔎 Подробнее (в личке)', `https://t.me/${botUsername}?start=${DETAILS_PREFIX}${bill.id}`);
+export function resultKeyboard(bill: Bill, result: SplitResult, botUsername: string): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  const paid = new Set(bill.paid ?? []);
+  const byPaidLast = [...result.settlements].sort((a, b) => Number(paid.has(a.userId)) - Number(paid.has(b.userId)));
+
+  for (const s of byPaidLast) {
+    const isPaid = paid.has(s.userId);
+    const label = isPaid
+      ? `↩️ Отменить оплату: ${truncate(s.displayName, 24)}`
+      : `✅ Оплатил(а): ${truncate(s.displayName, 24)}`;
+    kb.text(label, cb.pay(bill, s.userId)).row();
+  }
+
+  kb.url('🔎 Подробнее (в личке)', `https://t.me/${botUsername}?start=${DETAILS_PREFIX}${bill.id}`);
+  return kb;
 }
 
 /**

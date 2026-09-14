@@ -43,6 +43,10 @@ export interface Bill {
   id: string;
   chatId: number;
   messageId?: number;
+  /** The "💰 Итого к оплате" message — edited in place when someone toggles payment status */
+  resultMessageId?: number;
+  /** Participants who have been marked as having paid (self or confirmed by the creator) */
+  paid?: UserId[];
   createdBy: UserId;
   createdAt: number;
   status: BillStatus;

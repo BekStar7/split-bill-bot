@@ -54,6 +54,22 @@ export class BillService {
     });
   }
 
+  attachResultMessage(id: string, messageId: number): Bill {
+    return this.update(id, (b) => {
+      b.resultMessageId = messageId;
+    });
+  }
+
+  /** Toggles whether `targetUserId` is marked as paid. Caller enforces who may do this. */
+  togglePaid(id: string, targetUserId: UserId): Bill {
+    return this.update(id, (b) => {
+      const paid = b.paid ?? (b.paid = []);
+      const i = paid.indexOf(targetUserId);
+      if (i >= 0) paid.splice(i, 1);
+      else paid.push(targetUserId);
+    });
+  }
+
   toggleParticipant(id: string, p: Participant): Bill {
     return this.update(id, (b) => {
       const i = b.participants.findIndex((x) => x.userId === p.userId);
@@ -109,6 +125,13 @@ export class BillService {
   result(id: string): { bill: Bill; result: SplitResult } {
     const bill = this.get(id);
     if (bill.status !== 'done') throw new BillNotCalculated(id);
+    return { bill, result: splitBill(bill) };
+  }
+
+  /** The bill /debtors acts on: the most recently calculated one in this chat. */
+  latestForChat(chatId: number): { bill: Bill; result: SplitResult } {
+    const bill = this.repo.latestDoneByChat(chatId);
+    if (!bill) throw new BillNotFound(String(chatId));
     return { bill, result: splitBill(bill) };
   }
 

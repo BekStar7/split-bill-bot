@@ -7,7 +7,7 @@ import { personEmoji } from './emoji.js';
 const esc = (s: string) => s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]!);
 
 /** Pings the user in the message, even without a @username — works as long as they've sent a message in this chat. */
-const mention = (userId: string, name: string) => `<a href="tg://user?id=${userId}">${esc(name)}</a>`;
+export const mention = (userId: string, name: string) => `<a href="tg://user?id=${userId}">${esc(name)}</a>`;
 
 export function renderBill(bill: Bill): string {
   const cur = bill.currency;
@@ -64,14 +64,39 @@ export function renderClosed(bill: Bill): string {
   ].join('\n');
 }
 
-/** Group message: just who owes what. Per-person breakdown lives in the DM (renderMyDetails). */
+/** Group message: just who owes what, bucketed by payment status. Per-person breakdown lives in the DM (renderMyDetails). */
 export function renderResult(bill: Bill, result: SplitResult): string {
   const cur = bill.currency;
-  const rows = [...result.settlements]
-    .sort((a, b) => b.amount - a.amount)
-    .map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
+  const paid = new Set(bill.paid ?? []);
+  const row = (s: (typeof result.settlements)[number]) =>
+    `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`;
 
-  return [`💰 <b>Итого к оплате</b>`, '', ...rows, '', renderCheck(bill, result)].join('\n');
+  const sorted = [...result.settlements].sort((a, b) => b.amount - a.amount);
+  const paidRows = sorted.filter((s) => paid.has(s.userId)).map(row);
+  const dueRows = sorted.filter((s) => !paid.has(s.userId)).map(row);
+
+  const sections: string[] = [];
+  if (dueRows.length) sections.push('❌ <b>Должны:</b>', ...dueRows);
+  if (paidRows.length) {
+    if (sections.length) sections.push('');
+    sections.push('✅ <b>Оплатили:</b>', ...paidRows);
+  }
+
+  return [`💰 <b>Итого к оплате</b>`, '', ...sections, '', renderCheck(bill, result)].join('\n');
+}
+
+/** Reply for /debtors: who still owes, plus a ping to shame them into paying. */
+export function renderDebtors(bill: Bill, result: SplitResult): string {
+  const cur = bill.currency;
+  const paid = new Set(bill.paid ?? []);
+  const debtors = result.settlements.filter((s) => !paid.has(s.userId));
+
+  if (!debtors.length) return '✅ Все оплатили, долгов нет.';
+
+  const rows = debtors.map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
+  const ping = debtors.map((s) => mention(s.userId, s.displayName)).join(', ');
+
+  return ['❌ <b>Должники:</b>', ...rows, '', `Эй, ${ping}, погасите должок 👀`].join('\n');
 }
 
 /** DM message: one person's share, line by line. */

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { Bill, SplitResult } from '../core/types.js';
 import type { ParsedBill } from '../ocr/schema.js';
 import type { Db } from './client.js';
@@ -28,6 +28,18 @@ export class BillRepo {
 
   get(id: string): Bill | undefined {
     const row = this.db.select().from(bills).where(eq(bills.id, id)).get();
+    return row ? (row.data as Bill) : undefined;
+  }
+
+  /** Most recently calculated bill in a chat — used by /debtors, which acts on "the" current bill. */
+  latestDoneByChat(chatId: number): Bill | undefined {
+    const row = this.db
+      .select()
+      .from(bills)
+      .where(and(eq(bills.chatId, chatId), eq(bills.status, 'done')))
+      .orderBy(desc(bills.createdAt))
+      .limit(1)
+      .get();
     return row ? (row.data as Bill) : undefined;
   }
 

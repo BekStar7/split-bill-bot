@@ -1,5 +1,6 @@
 import type { Composer } from 'grammy';
 import { GrammyError } from 'grammy';
+import { splitBill } from '../../core/split.js';
 import type { Bill } from '../../core/types.js';
 import { BillNotFound } from '../../services/bill-service.js';
 import { participantFrom, type BotContext } from '../context.js';
@@ -29,7 +30,7 @@ export function registerCallbacks(bot: Composer<BotContext>): void {
       throw e;
     }
 
-    if (bill.status === 'done') return answer(ctx, 'Счёт уже посчитан');
+    if (bill.status === 'done' && action !== 'p') return answer(ctx, 'Счёт уже посчитан');
 
     const managerOnly = () => {
       if (bills.canManage(bill, me.userId)) return true;
@@ -66,13 +67,33 @@ export function registerCallbacks(bot: Composer<BotContext>): void {
         cancelPendingEdit(done.id);
         try {
           await safeEdit(ctx, renderClosed(done), billKeyboard(done));
-          await ctx.reply(renderResult(done, result), {
+          const sent = await ctx.reply(renderResult(done, result), {
             parse_mode: 'HTML',
-            reply_markup: resultKeyboard(done, ctx.me.username),
+            reply_markup: resultKeyboard(done, result, ctx.me.username),
           });
+          bills.attachResultMessage(done.id, sent.message_id);
         } finally {
           await answer(ctx);
         }
+        return;
+      }
+      case 'p': {
+        const targetUserId = arg!;
+        const isManager = bills.canManage(bill, me.userId);
+        const alreadyPaid = (bill.paid ?? []).includes(targetUserId);
+
+        // Marking yourself paid is self-service; un-marking (cancelling a payment) is only
+        // for whoever loaded the chek, so nobody can dodge their debt by un-checking it.
+        if (alreadyPaid ? !isManager : targetUserId !== me.userId && !isManager) {
+          return answer(
+            ctx,
+            alreadyPaid ? 'Отменить оплату может только тот, кто загрузил чек' : 'Отметить может только сам человек или тот, кто загрузил чек',
+          );
+        }
+        const updated = bills.togglePaid(billId!, targetUserId);
+        const isPaid = (updated.paid ?? []).includes(targetUserId);
+        await scheduleResultEdit(ctx, updated);
+        await answer(ctx, isPaid ? 'Отмечено как оплачено ✅' : 'Отметка снята');
         return;
       }
     }
@@ -160,4 +181,45 @@ function cancelPendingEdit(billId: string): void {
   clearTimeout(pending.timer);
   pendingEdits.delete(billId);
   pending.resolve();
+}
+
+// Same coalescing scheme as above, but for the "💰 Итого к оплате" message — several people
+// can tap "paid" on the same bill within milliseconds of each other.
+const pendingResultEdits = new Map<string, PendingEdit>();
+
+function scheduleResultEdit(ctx: BotContext, bill: Bill): Promise<void> {
+  const pending = pendingResultEdits.get(bill.id);
+  if (pending) {
+    pending.bill = bill;
+    return pending.done;
+  }
+
+  let resolve!: () => void;
+  const done = new Promise<void>((r) => (resolve = r));
+  const entry: PendingEdit = {
+    bill,
+    done,
+    resolve,
+    timer: setTimeout(() => {
+      pendingResultEdits.delete(bill.id);
+      void editResultMessage(ctx, entry.bill).then(resolve);
+    }, EDIT_DEBOUNCE_MS),
+  };
+  pendingResultEdits.set(bill.id, entry);
+  return done;
+}
+
+/** Never rejects — a failed edit is logged, and the callers still get their spinners cleared. */
+async function editResultMessage(ctx: BotContext, bill: Bill): Promise<void> {
+  if (!bill.resultMessageId) return;
+  const result = splitBill(bill);
+  try {
+    await ctx.api.editMessageText(bill.chatId, bill.resultMessageId, renderResult(bill, result), {
+      parse_mode: 'HTML',
+      reply_markup: resultKeyboard(bill, result, ctx.me.username),
+    });
+  } catch (e) {
+    if (e instanceof GrammyError && e.description.includes('message is not modified')) return;
+    ctx.deps.log.error({ err: e }, 'failed to edit result message');
+  }
 }
