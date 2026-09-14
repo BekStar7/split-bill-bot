@@ -21,6 +21,9 @@ export function registerPhoto(bot: Composer<BotContext>): void {
   // useful when the photo was sent without a caption. Any other text addressed to the bot
   // (mention in a group, anything in private) gets a hint about what it expects.
   bot.on('message:text', async (ctx) => {
+    // Slash commands (e.g. /debtors@bot) have their own handlers — don't swallow them here.
+    if (ctx.message.entities?.some((e) => e.type === 'bot_command' && e.offset === 0)) return;
+
     const inGroup = ctx.chat.type !== 'private';
     if (inGroup && !mentionsBot(ctx, ctx.message.text)) return;
 
