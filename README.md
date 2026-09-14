@@ -36,6 +36,19 @@ docker compose logs -f bot
 
 БД лежит в `./data/splitcheck.db` — бэкап = копия одного файла.
 
+## Деплой на Fly.io (автоматический)
+
+Каждый push в `main` запускает `.github/workflows/deploy.yml`: typecheck → lint → test → `flyctl deploy`.
+Руками деплоить не нужно. Разовая настройка — положить токен Fly в секреты репозитория:
+
+```bash
+fly tokens create deploy -x 999999h -a split-bill-bot   # скопируй вывод целиком
+# GitHub → Settings → Secrets and variables → Actions → New repository secret
+# Name: FLY_API_TOKEN, Value: токен из команды выше
+```
+
+Секреты самого бота (`BOT_TOKEN`, `ANTHROPIC_API_KEY`, …) живут в `fly secrets`, а не в GitHub.
+
 ## Как пользоваться
 
 1. Добавь бота в группу, дай ему право читать сообщения (или отключи privacy mode у @BotFather).
