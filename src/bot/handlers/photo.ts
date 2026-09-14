@@ -20,10 +20,22 @@ export function registerPhoto(bot: Composer<BotContext>): void {
   // Replying with e.g. "чек" to an earlier photo message also triggers processing —
   // useful when the photo was sent without a caption.
   bot.on('message:text', async (ctx) => {
-    const replyPhoto = ctx.message.reply_to_message?.photo;
-    if (!replyPhoto) return;
+    const replied = ctx.message.reply_to_message;
+    if (!replied) return;
     if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.text)) {
-      ctx.deps.log.info({ chatId: ctx.chat.id, text: ctx.message.text }, 'reply to photo ignored: no keyword/mention');
+      ctx.deps.log.info({ chatId: ctx.chat.id, text: ctx.message.text }, 'reply ignored: no keyword/mention');
+      return;
+    }
+
+    const replyPhoto = replied.photo;
+    if (!replyPhoto) {
+      // Someone explicitly asked us about this message, but there's no photo we can read —
+      // most often it was posted before the bot joined the chat (bots can't see history).
+      if (looksLikeBillRequest(ctx, ctx.message.text)) {
+        await ctx.reply('Не вижу фото в этом сообщении 🙈 Если чек прислали до того, как меня добавили в чат, я не могу его прочитать — пришли фото ещё раз с подписью «чек».', {
+          reply_to_message_id: ctx.message.message_id,
+        });
+      }
       return;
     }
 
