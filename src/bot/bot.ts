@@ -14,6 +14,11 @@ export function createBot(deps: Deps): Bot<BotContext> {
 
   bot.use((ctx, next) => {
     ctx.deps = deps;
+    // One line per update — enough to tell "never arrived" from "arrived and was ignored".
+    deps.log.info(
+      { update: ctx.update.update_id, chatId: ctx.chat?.id, chatType: ctx.chat?.type, from: ctx.from?.id },
+      ctx.message ? 'message' : ctx.callbackQuery ? 'callback' : 'update',
+    );
     return next();
   });
 

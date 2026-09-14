@@ -8,7 +8,10 @@ export function registerPhoto(bot: Composer<BotContext>): void {
   bot.on('message:photo', async (ctx) => {
     // In groups, react only to photos that mention the bot or are captioned with "чек"/"счет"
     // to avoid burning API credits on random photos. In private chats — always.
-    if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.caption)) return;
+    if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.caption)) {
+      ctx.deps.log.info({ chatId: ctx.chat.id, caption: ctx.message.caption }, 'group photo ignored: no keyword/mention');
+      return;
+    }
 
     const photo = ctx.message.photo.at(-1)!; // largest size
     await processReceiptPhoto(ctx, photo, ctx.message.message_id);
@@ -19,7 +22,10 @@ export function registerPhoto(bot: Composer<BotContext>): void {
   bot.on('message:text', async (ctx) => {
     const replyPhoto = ctx.message.reply_to_message?.photo;
     if (!replyPhoto) return;
-    if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.text)) return;
+    if (ctx.chat.type !== 'private' && !looksLikeBillRequest(ctx, ctx.message.text)) {
+      ctx.deps.log.info({ chatId: ctx.chat.id, text: ctx.message.text }, 'reply to photo ignored: no keyword/mention');
+      return;
+    }
 
     const photo = replyPhoto.at(-1)!; // largest size
     await processReceiptPhoto(ctx, photo, ctx.message.message_id);
@@ -29,6 +35,7 @@ export function registerPhoto(bot: Composer<BotContext>): void {
 async function processReceiptPhoto(ctx: BotContext, photo: PhotoSize, replyToMessageId: number): Promise<void> {
   const { ocr, bills, config, log } = ctx.deps;
   const chatId = ctx.chat!.id;
+  log.info({ chatId, chatType: ctx.chat!.type, from: ctx.from?.id }, 'processing receipt photo');
 
   const status = await ctx.reply('🔍 Читаю чек…', { reply_to_message_id: replyToMessageId });
 
