@@ -18,22 +18,28 @@ export function registerPhoto(bot: Composer<BotContext>): void {
   });
 
   // Replying "@bot" to an earlier photo message also triggers processing —
-  // useful when the photo was sent without a caption.
+  // useful when the photo was sent without a caption. Any other text addressed to the bot
+  // (mention in a group, anything in private) gets a hint about what it expects.
   bot.on('message:text', async (ctx) => {
-    const replied = ctx.message.reply_to_message;
-    if (!replied) return;
-    if (ctx.chat.type !== 'private' && !mentionsBot(ctx, ctx.message.text)) return;
+    const inGroup = ctx.chat.type !== 'private';
+    if (inGroup && !mentionsBot(ctx, ctx.message.text)) return;
 
-    const replyPhoto = replied.photo;
+    // A reply to a message the bot received arrives as reply_to_message. A reply to one it
+    // never saw (posted before it joined the chat) comes as external_reply, or as no reply at all.
+    const { reply_to_message: replied, external_reply: external } = ctx.message;
+    const replyPhoto = replied?.photo ?? external?.photo;
+
     if (!replyPhoto) {
-      // Someone explicitly asked us about this message, but there's no photo we can read —
-      // most often it was posted before the bot joined the chat (bots can't see history).
-      if (mentionsBot(ctx, ctx.message.text)) {
-        await ctx.reply(
-          `Не вижу фото в этом сообщении 🙈 Если чек прислали до того, как меня добавили в чат, я не могу его прочитать — пришли фото ещё раз с подписью @${ctx.me.username}.`,
-          { reply_to_message_id: ctx.message.message_id },
-        );
-      }
+      ctx.deps.log.info(
+        { chatId: ctx.chat.id, isReply: Boolean(replied || external), keys: Object.keys(ctx.message) },
+        'mention without a readable photo',
+      );
+      const how = inGroup ? `с подписью @${ctx.me.username}` : 'сюда';
+      const text =
+        replied || external
+          ? `Не вижу фото в этом сообщении 🙈 Если чек прислали до того, как меня добавили в чат, я не могу его прочитать — пришли фото ещё раз ${how}.`
+          : `Пришли фото чека ${how} — или ответь @${ctx.me.username} на сообщение с фото.`;
+      await ctx.reply(text, { reply_to_message_id: ctx.message.message_id });
       return;
     }
 
