@@ -101,7 +101,7 @@ export function renderDebtors(open: Array<{ bill: Bill; result: SplitResult }>):
     for (const s of debtors) pinged.set(s.userId, s.displayName);
 
     const link = messageLink(bill, bill.resultMessageId ?? bill.messageId);
-    const title = `🧾 <b>Чек · ${formatBillDate(bill)}</b>${link ? ` · <a href="${link}">открыть</a>` : ''}`;
+    const title = `🧾 <b>Чек</b>${link ? ` · <a href="${link}">открыть</a>` : ''}`;
     const rows = debtors.map((s) => `${mention(s.userId, s.displayName)} — <b>${formatMoney(s.amount, cur)}</b>`);
     return [title, ...rows].join('\n');
   });
@@ -109,15 +109,6 @@ export function renderDebtors(open: Array<{ bill: Bill; result: SplitResult }>):
   const ping = [...pinged].map(([userId, name]) => mention(userId, name)).join(', ');
 
   return ['❌ <b>Должники:</b>', '', blocks.join('\n\n'), '', `Эй, ${ping}, погасите должок 👀`].join('\n');
-}
-
-function formatBillDate(bill: Bill): string {
-  return new Date(bill.createdAt).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function messageLink(bill: Bill, messageId: number | undefined): string | undefined {

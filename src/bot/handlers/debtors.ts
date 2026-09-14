@@ -6,6 +6,9 @@ import { renderDebtors } from '../render.js';
 export function registerDebtors(bot: Composer<BotContext>): void {
   bot.command('debtors', async (ctx) => {
     const open = ctx.deps.bills.openForChat(ctx.chat!.id);
-    await ctx.reply(renderDebtors(open), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    await ctx.reply(renderDebtors(open), {
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    });
   });
 }
