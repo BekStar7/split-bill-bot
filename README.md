@@ -49,6 +49,14 @@ fly tokens create deploy -x 999999h -a split-bill-bot   # скопируй вы�
 
 Секреты самого бота (`BOT_TOKEN`, `ANTHROPIC_API_KEY`, …) живут в `fly secrets`, а не в GitHub.
 
+Если коммит не должен уезжать на прод (README, CI-конфиг, тесты, рефактор без изменения рантайма) —
+добавь `[skip deploy]` (или короче `[skip]`) в сообщение коммита. Typecheck/lint/test всё равно
+прогонятся, а вот `flyctl deploy` пропустится:
+
+```bash
+git commit -m "docs: update README [skip deploy]"
+```
+
 ## Как пользоваться
 
 1. Добавь бота в группу, дай ему право читать сообщения (или отключи privacy mode у @BotFather).
