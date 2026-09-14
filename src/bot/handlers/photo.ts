@@ -77,9 +77,9 @@ async function processReceiptPhoto(ctx: BotContext, photo: PhotoSize, replyToMes
     });
     if (typeof msg === 'object') bills.attachMessage(bill.id, msg.message_id);
 
-    if (parsed.notes) {
-      await ctx.reply(`ℹ️ ${parsed.notes}`, { reply_to_message_id: status.message_id });
-    }
+    // OCR notes are the model's reasoning about fees/discounts — useful for debugging a bad
+    // parse, but noise in the chat. Keep them in the log only.
+    if (parsed.notes) log.info({ chatId, notes: parsed.notes }, 'ocr notes');
   } catch (err) {
     log.error({ err }, 'failed to parse receipt');
     await ctx.api.editMessageText(
